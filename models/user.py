@@ -44,14 +44,14 @@ class User:
 class UserManager:
     """Manages user persistence and authentication."""
     
-    USERS_FILE = 'data\\users.json'
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    USERS_FILE = os.path.abspath(os.path.join(BASE_DIR, "..", "data", "users.json"))
     
     @classmethod
     def initialize_default_users(cls):
-        """Initialize default users if they don't exist."""
         if not os.path.exists(cls.USERS_FILE):
             os.makedirs(os.path.dirname(cls.USERS_FILE), exist_ok=True)
-            # Create default users
+
             default_users = {
                 'demo': User.hash_password('demo123'),
                 'trader': User.hash_password('trader123'),
@@ -59,7 +59,6 @@ class UserManager:
             }
             with open(cls.USERS_FILE, 'w') as f:
                 json.dump(default_users, f, indent=4)
-    
     @classmethod
     def authenticate(cls, username: str, password: str) -> bool:
         """Authenticate a user.
