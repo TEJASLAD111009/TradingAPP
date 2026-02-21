@@ -9,7 +9,7 @@ import hashlib
 class User:
     """User model to handle user data and authentication."""
     
-    def __init__(self, username: str, password: str = None):
+    def __init__(self, username: str, password: str = None): # type: ignore
         """Initialize a user object.
         
         Args:
@@ -44,7 +44,7 @@ class User:
 class UserManager:
     """Manages user persistence and authentication."""
     
-    USERS_FILE = 'd:\\trading\\data\\users.json'
+    USERS_FILE = 'data\\users.json'
     
     @classmethod
     def initialize_default_users(cls):
