@@ -9,8 +9,6 @@ from controllers import PortfolioController
 # Load environment variables
 load_dotenv()
 
-st.write("API:", os.getenv("ALPHA_VANTAGE_API_KEY"))
-
 # Add parent directory to path for imports
 current_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(current_dir))
