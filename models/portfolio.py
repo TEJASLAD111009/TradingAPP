@@ -169,9 +169,12 @@ class Portfolio:
 
 
 class PortfolioManager:
-    """Manages portfolio persistence and operations."""
+    """Manages portfolio persistence and operations (Cross-platform compatible)."""
     
-    PORTFOLIOS_FILE = 'd:\\trading\\data\\portfolios.json'
+    # Use path-independent approach
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data")
+    PORTFOLIOS_FILE = os.path.join(DATA_DIR, "portfolios.json")
     
     @classmethod
     def initialize_portfolio(cls, username: str) -> Portfolio:

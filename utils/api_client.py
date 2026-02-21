@@ -1,24 +1,29 @@
 """
-API Client - Handles stock data fetching from Alpha Vantage
+API Client - Handles stock data fetching from Alpha Vantage (Cross-platform compatible)
 """
 import requests
 import pandas as pd
 from typing import Optional
+import os
+from dotenv import load_dotenv
 
-API_KEY = 'C9PXB599HAW9FC7Y'
+# Load environment variables
+load_dotenv()
+
+API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
 BASE_URL = "https://www.alphavantage.co/query"
 
 class StockAPIClient:
     """Client for fetching stock data from Alpha Vantage API"""
     
-    def __init__(self, api_key: str = API_KEY):
+    def __init__(self, api_key: Optional[str] = None):
         """
         Initialize the API client
         
         Args:
-            api_key: Alpha Vantage API key
+            api_key: Alpha Vantage API key (uses env var if not provided)
         """
-        self.api_key = "MQIKXBO3Y2CVGMXX"
+        self.api_key = api_key or os.getenv('ALPHA_VANTAGE_API_KEY', API_KEY)
         self.base_url = "https://www.alphavantage.co/query"
     
     def fetch_intraday_data(self, symbol: str, interval: str = "5min") -> Optional[pd.DataFrame]:

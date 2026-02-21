@@ -45,7 +45,8 @@ class UserManager:
     """Manages user persistence and authentication."""
     
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    USERS_FILE = os.path.abspath(os.path.join(BASE_DIR, "..", "data", "users.json"))
+    DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data")
+    USERS_FILE = os.path.join(DATA_DIR, "users.json")
     
     @classmethod
     def initialize_default_users(cls):

@@ -1,9 +1,14 @@
-"""Utility module for fetching stock data using yfinance API."""
+"""Utility module for fetching stock data using yfinance API (Cross-platform compatible)."""
 import yfinance as yf
 import pandas as pd
 from typing import Dict, List, Optional, Tuple
 import requests
 from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 class StockAPI:

@@ -1,12 +1,17 @@
-"""Main entry point for the Trading App Streamlit application."""
+"""Main entry point for the Trading App Streamlit application (Cross-platform compatible)."""
 import streamlit as st
 import sys
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 from controllers import PortfolioController
 
+# Load environment variables
+load_dotenv()
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+current_dir = Path(__file__).resolve().parent
+sys.path.insert(0, str(current_dir))
 
 from views import (
     login_page,

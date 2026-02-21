@@ -139,9 +139,12 @@ class Wallet:
 
 
 class WalletManager:
-    """Manages wallet persistence and operations."""
+    """Manages wallet persistence and operations (Cross-platform compatible)."""
     
-    WALLETS_FILE = 'd:\\trading\\data\\wallets.json'
+    # Use path-independent approach
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data")
+    WALLETS_FILE = os.path.join(DATA_DIR, "wallets.json")
     
     @classmethod
     def initialize_wallet(cls, username: str, initial_balance: float = 1000.0):
