@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: trading-app
+    env: python
+    plan: free
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: streamlit run main.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --logger.level=error
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.10.13"
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: "true"
+      - key: STREAMLIT_SERVER_PORT
+        value: "8501"
+      - key: STREAMLIT_SERVER_ADDRESS
+        value: "0.0.0.0"
+      - key: STREAMLIT_CLIENT_SHOW_ERROR_DETAILS
+        value: "true"
+      - key: STREAMLIT_LOGGER_LEVEL
+        value: "error"

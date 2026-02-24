@@ -24,6 +24,19 @@ from views import (
     stock_details_page
 )
 from utils import StockAPI
+from models import UserManager
+
+# Initialize data files on app startup (critical for Render deployment)
+@st.cache_resource
+def initialize_app():
+    """Initialize app data files if they don't exist."""
+    try:
+        UserManager.initialize_default_users()
+    except Exception as e:
+        st.warning(f"Warning initializing data: {e}")
+
+# Call initialization
+initialize_app()
 
 
 # Configure page
