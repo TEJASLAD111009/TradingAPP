@@ -4,7 +4,14 @@ import sys
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from controllers import PortfolioController
+
+# Configure page FIRST - must be before any other Streamlit commands
+st.set_page_config(
+    page_title="Trading App",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # Load environment variables
 load_dotenv()
@@ -13,6 +20,7 @@ load_dotenv()
 current_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(current_dir))
 
+from controllers import PortfolioController
 from views import (
     login_page,
     logout,
@@ -37,15 +45,6 @@ def initialize_app():
 
 # Call initialization
 initialize_app()
-
-
-# Configure page
-st.set_page_config(
-    page_title="Trading App",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # Custom CSS
 st.markdown("""
