@@ -1,4 +1,4 @@
-"""Utility module for fetching stock data using yfinance API (Cross-platform compatible)."""
+"""Utility module for fetching stock data using Alpha Vantage (Primary) and yfinance (Fallback)."""
 import yfinance as yf
 import pandas as pd
 from typing import Dict, List, Optional, Tuple
@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+
+# Import Alpha Vantage client
+from utils.api_client import StockAPIClient
 
 
 class StockAPI:
@@ -81,6 +84,8 @@ class StockAPI:
     def get_stock_price(cls, symbol: str) -> Optional[Dict]:
         """Get current stock price in USD with INR conversion.
         
+        Uses Alpha Vantage as primary, falls back to yfinance.
+        
         Args:
             symbol: Stock symbol (e.g., AAPL)
             
@@ -89,20 +94,64 @@ class StockAPI:
         """
         try:
             logger.info(f"Fetching stock data for: {symbol}")
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period='1d')
             
-            if data.empty:
-                logger.warning(f"No data returned for {symbol}")
+            # Try Alpha Vantage first (if API key is available and not 'demo')
+            api_key = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
+            if api_key and api_key != 'demo':
+                logger.info(f"Attempting Alpha Vantage for {symbol}")
+                result = cls._get_stock_price_from_alpha_vantage(symbol, api_key)
+                if result:
+                    logger.info(f"Successfully fetched {symbol} from Alpha Vantage: ${result['price_usd']}")
+                    return result
+                logger.warning(f"Alpha Vantage failed for {symbol}, trying yfinance fallback")
+            
+            # Fall back to yfinance
+            logger.info(f"Attempting yfinance for {symbol}")
+            result = cls._get_stock_price_from_yfinance(symbol)
+            if result:
+                logger.info(f"Successfully fetched {symbol} from yfinance: ${result['price_usd']}")
+                return result
+            
+            logger.error(f"All sources failed for {symbol}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error fetching stock {symbol}: {str(e)}")
+            return None
+    
+    @classmethod
+    def _get_stock_price_from_alpha_vantage(cls, symbol: str, api_key: str) -> Optional[Dict]:
+        """Fetch stock price from Alpha Vantage API.
+        
+        Args:
+            symbol: Stock symbol
+            api_key: Alpha Vantage API key
+            
+        Returns:
+            Stock data or None
+        """
+        try:
+            client = StockAPIClient(api_key)
+            data = client.fetch_daily_data(symbol)
+            
+            if data is None or data.empty:
                 return None
             
-            info = ticker.info
+            # Get the latest price
+            latest_data = data.iloc[0]  # Most recent is first
+            current_price_usd = float(latest_data['Close'])
             
-            current_price_usd = data['Close'].iloc[-1]
+            # Fetch additional info from yfinance (for name, market cap, etc.)
+            try:
+                ticker = yf.Ticker(symbol)
+                info = ticker.info
+            except:
+                info = {}
+            
             exchange_rate = cls.get_exchange_rate()
             current_price_inr = current_price_usd * exchange_rate
             
-            result = {
+            return {
                 'symbol': symbol,
                 'name': info.get('longName', symbol),
                 'price_usd': round(current_price_usd, 2),
@@ -116,10 +165,50 @@ class StockAPI:
                 'divi_yield': info.get('dividendYield', 'N/A'),
                 'updated_at': datetime.now().isoformat()
             }
-            logger.info(f"Successfully fetched {symbol}: ${current_price_usd}")
-            return result
         except Exception as e:
-            logger.error(f"Error fetching stock {symbol}: {str(e)}")
+            logger.warning(f"Alpha Vantage error for {symbol}: {str(e)}")
+            return None
+    
+    @classmethod
+    def _get_stock_price_from_yfinance(cls, symbol: str) -> Optional[Dict]:
+        """Fetch stock price from yfinance API (fallback).
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            Stock data or None
+        """
+        try:
+            ticker = yf.Ticker(symbol)
+            data = ticker.history(period='1d')
+            
+            if data.empty:
+                logger.warning(f"yfinance: No data returned for {symbol}")
+                return None
+            
+            info = ticker.info
+            
+            current_price_usd = data['Close'].iloc[-1]
+            exchange_rate = cls.get_exchange_rate()
+            current_price_inr = current_price_usd * exchange_rate
+            
+            return {
+                'symbol': symbol,
+                'name': info.get('longName', symbol),
+                'price_usd': round(current_price_usd, 2),
+                'price_inr': round(current_price_inr, 2),
+                'currency': 'USD',
+                'exchange_rate': round(exchange_rate, 2),
+                'change': round(info.get('regularMarketChange', 0), 2),
+                'change_percent': round(info.get('regularMarketChangePercent', 0), 2),
+                'market_cap': info.get('marketCap', 'N/A'),
+                'pe_ratio': info.get('trailingPE', 'N/A'),
+                'divi_yield': info.get('dividendYield', 'N/A'),
+                'updated_at': datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.warning(f"yfinance error for {symbol}: {str(e)}")
             return None
     
     @classmethod
@@ -145,6 +234,8 @@ class StockAPI:
     def get_stock_history(cls, symbol: str, period: str = '1mo') -> Optional[pd.DataFrame]:
         """Get historical stock data in USD.
         
+        Tries Alpha Vantage first, falls back to yfinance.
+        
         Args:
             symbol: Stock symbol
             period: Period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
@@ -154,10 +245,29 @@ class StockAPI:
         """
         try:
             logger.info(f"Fetching {period} history for {symbol}")
+            
+            # Try Alpha Vantage first (if API key is available and not 'demo')
+            api_key = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
+            if api_key and api_key != 'demo':
+                logger.info(f"Attempting Alpha Vantage history for {symbol}")
+                try:
+                    client = StockAPIClient(api_key)
+                    data = client.fetch_daily_data(symbol)
+                    if data is not None and not data.empty:
+                        logger.info(f"Successfully fetched {len(data)} records from Alpha Vantage")
+                        return data
+                except Exception as e:
+                    logger.warning(f"Alpha Vantage history failed: {str(e)}")
+            
+            # Fall back to yfinance
+            logger.info(f"Attempting yfinance history for {symbol}")
             ticker = yf.Ticker(symbol)
             data = ticker.history(period=period)
             
-            # Data is already in USD, no conversion needed
+            if data.empty:
+                logger.warning(f"yfinance: No history returned for {symbol}")
+                return None
+            
             logger.info(f"Successfully fetched history for {symbol}: {len(data)} records")
             return data
         except Exception as e:

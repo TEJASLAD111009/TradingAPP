@@ -33,29 +33,67 @@ class StockAPIDiagnostics:
     
     @staticmethod
     def check_yfinance_api() -> dict:
-        """Check if yfinance API is accessible."""
+        """Check if yfinance API is accessible (fallback source)."""
         try:
             ticker = yf.Ticker('AAPL')
             data = ticker.history(period='1d', timeout=10)
             
             if data.empty:
                 return {
-                    'status': 'FAIL',
-                    'message': 'yfinance returned empty data',
+                    'status': 'WARN',
+                    'message': 'yfinance returned empty data (fallback source)',
                     'data_length': 0
                 }
             
             return {
                 'status': 'OK',
-                'message': f'yfinance is working (fetched {len(data)} records)',
+                'message': f'yfinance is working (fallback source: {len(data)} records)',
                 'data_length': len(data),
                 'latest_price': float(data['Close'].iloc[-1])
             }
         except Exception as e:
             return {
                 'status': 'FAIL',
-                'message': f'yfinance error: {str(e)}',
+                'message': f'yfinance error (fallback source may be needed): {str(e)}',
                 'error_type': type(e).__name__
+            }
+    
+    @staticmethod
+    def check_alpha_vantage_api() -> dict:
+        """Check if Alpha Vantage API is accessible (primary source)."""
+        api_key = os.getenv('ALPHA_VANTAGE_API_KEY', 'demo')
+        
+        if api_key == 'demo':
+            return {
+                'status': 'NOT_CONFIGURED',
+                'message': 'Alpha Vantage API key not configured (using demo key)',
+                'recommendation': 'Set ALPHA_VANTAGE_API_KEY in environment for production use'
+            }
+        
+        try:
+            from utils.api_client import StockAPIClient
+            client = StockAPIClient(api_key)
+            data = client.fetch_daily_data('AAPL')
+            
+            if data is None or data.empty:
+                return {
+                    'status': 'FAIL',
+                    'message': 'Alpha Vantage returned no data (API key may be invalid or rate limited)',
+                    'api_key_configured': True
+                }
+            
+            return {
+                'status': 'OK',
+                'message': f'Alpha Vantage is working (primary source: {len(data)} records)',
+                'data_length': len(data),
+                'latest_price': float(data['Close'].iloc[0])
+            }
+        except Exception as e:
+            return {
+                'status': 'FAIL',
+                'message': f'Alpha Vantage error: {str(e)}',
+                'error_type': type(e).__name__,
+                'api_key_configured': True
             }
     
     @staticmethod
@@ -95,17 +133,18 @@ class StockAPIDiagnostics:
             'environment': os.getenv('RENDER', 'Local'),
             'checks': {
                 'network': StockAPIDiagnostics.check_network_connectivity(),
+                'alpha_vantage': StockAPIDiagnostics.check_alpha_vantage_api(),
                 'yfinance': StockAPIDiagnostics.check_yfinance_api(),
                 'exchange_rate': StockAPIDiagnostics.check_exchange_rate_api()
             }
         }
         
         # Determine overall status
-        all_ok = all(
+        critical_ok = any(
             check.get('status') == 'OK' 
-            for check in results['checks'].values()
+            for check in [results['checks']['alpha_vantage'], results['checks']['yfinance']]
         )
-        results['overall_status'] = 'OK' if all_ok else 'FAILED'
+        results['overall_status'] = 'OK' if (critical_ok and results['checks']['network']['status'] == 'OK') else 'FAILED'
         
         return results
     
