@@ -131,7 +131,20 @@ def stocks_page(username: str):
             df_stocks = pd.DataFrame(stocks_data)
             st.dataframe(df_stocks, use_container_width=True, hide_index=True)
         else:
-            st.error("Unable to fetch stock data. Please try again later.")
+            st.error("""
+            ❌ Unable to fetch stock data.
+            
+            **Possible reasons:**
+            - Network connectivity issue with stock API
+            - API rate limits exceeded
+            - Stock API temporarily unavailable
+            
+            **Tips:**
+            - Try again in a few moments
+            - Check if you're using a valid API key
+            - Try searching for a specific stock below instead
+            """)
+            st.warning("💡 Tip: You can still search for individual stocks in the 'Buy Stock' or 'Sell Stock' tabs")
     
     with tab2:
         st.subheader("Buy Stock")

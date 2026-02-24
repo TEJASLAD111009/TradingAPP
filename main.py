@@ -33,15 +33,24 @@ from views import (
 )
 from utils import StockAPI
 from models import UserManager
+from utils.diagnostics import StockAPIDiagnostics
 
 # Initialize data files on app startup (critical for Render deployment)
 @st.cache_resource
 def initialize_app():
-    """Initialize app data files if they don't exist."""
+    """Initialize app data files and run diagnostics."""
     try:
         UserManager.initialize_default_users()
+        
+        # Run diagnostics on startup (logs will be visible in Render logs)
+        diagnostics = StockAPIDiagnostics.run_full_diagnostics()
+        if diagnostics['overall_status'] == 'OK':
+            st.write("✅ API connectivity: All systems operational")
+        else:
+            st.warning("⚠️ Some API connectivity issues detected. Check logs for details.")
+            StockAPIDiagnostics.print_diagnostics_report()
     except Exception as e:
-        st.warning(f"Warning initializing data: {e}")
+        st.warning(f"Warning during app initialization: {e}")
 
 # Call initialization
 initialize_app()

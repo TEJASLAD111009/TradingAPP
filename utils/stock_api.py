@@ -6,6 +6,11 @@ import requests
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -60,13 +65,16 @@ class StockAPI:
                 rate = data.get('rates', {}).get('INR', 83.0)
                 cls._exchange_rate_cache = rate
                 cls._last_update = datetime.now()
+                logger.info(f"Successfully fetched exchange rate: 1 USD = ₹{rate:.2f}")
                 return rate
         except Exception as e:
-            print(f"Error fetching exchange rate: {e}")
+            logger.warning(f"Error fetching exchange rate: {e}")
         
         # Fallback to cached or default value
         if cls._exchange_rate_cache:
+            logger.info(f"Using cached exchange rate: 1 USD = ₹{cls._exchange_rate_cache:.2f}")
             return cls._exchange_rate_cache
+        logger.info("Using default exchange rate: 1 USD = ₹83.0")
         return 83.0  # Default fallback
     
     @classmethod
@@ -80,10 +88,12 @@ class StockAPI:
             Dictionary with stock data or None if error
         """
         try:
+            logger.info(f"Fetching stock data for: {symbol}")
             ticker = yf.Ticker(symbol)
             data = ticker.history(period='1d')
             
             if data.empty:
+                logger.warning(f"No data returned for {symbol}")
                 return None
             
             info = ticker.info
@@ -92,7 +102,7 @@ class StockAPI:
             exchange_rate = cls.get_exchange_rate()
             current_price_inr = current_price_usd * exchange_rate
             
-            return {
+            result = {
                 'symbol': symbol,
                 'name': info.get('longName', symbol),
                 'price_usd': round(current_price_usd, 2),
@@ -106,8 +116,10 @@ class StockAPI:
                 'divi_yield': info.get('dividendYield', 'N/A'),
                 'updated_at': datetime.now().isoformat()
             }
+            logger.info(f"Successfully fetched {symbol}: ${current_price_usd}")
+            return result
         except Exception as e:
-            print(f"Error fetching stock {symbol}: {e}")
+            logger.error(f"Error fetching stock {symbol}: {str(e)}")
             return None
     
     @classmethod
@@ -120,11 +132,13 @@ class StockAPI:
         Returns:
             Dictionary of symbol: stock_data
         """
+        logger.info(f"Fetching data for {len(symbols)} stocks...")
         results = {}
         for symbol in symbols:
             data = cls.get_stock_price(symbol)
             if data:
                 results[symbol] = data
+        logger.info(f"Successfully fetched {len(results)}/{len(symbols)} stocks")
         return results
     
     @classmethod
@@ -139,13 +153,15 @@ class StockAPI:
             DataFrame with historical data (in USD) or None
         """
         try:
+            logger.info(f"Fetching {period} history for {symbol}")
             ticker = yf.Ticker(symbol)
             data = ticker.history(period=period)
             
             # Data is already in USD, no conversion needed
+            logger.info(f"Successfully fetched history for {symbol}: {len(data)} records")
             return data
         except Exception as e:
-            print(f"Error fetching history for {symbol}: {e}")
+            logger.error(f"Error fetching history for {symbol}: {str(e)}")
             return None
     
     @classmethod
