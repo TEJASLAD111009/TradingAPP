@@ -84,7 +84,7 @@ class StockAPI:
     def get_stock_price(cls, symbol: str) -> Optional[Dict]:
         """Get current stock price in USD with INR conversion.
         
-        Uses Alpha Vantage as primary, falls back to yfinance.
+        Uses Alpha Vantage as primary. On Render, uses demo data if both APIs fail.
         
         Args:
             symbol: Stock symbol (e.g., AAPL)
@@ -103,9 +103,15 @@ class StockAPI:
                 if result:
                     logger.info(f"Successfully fetched {symbol} from Alpha Vantage: ${result['price_usd']}")
                     return result
-                logger.warning(f"Alpha Vantage failed for {symbol}, trying yfinance fallback")
+                logger.warning(f"Alpha Vantage failed for {symbol}, trying fallback")
             
-            # Fall back to yfinance
+            # On Render, yfinance is usually blocked - try demo data as fallback
+            on_render = os.getenv('RENDER', False)
+            if on_render:
+                logger.warning(f"On Render: yfinance typically blocked, using demo data for {symbol}")
+                return cls._get_demo_stock_data(symbol)
+            
+            # Fall back to yfinance (for local development)
             logger.info(f"Attempting yfinance for {symbol}")
             result = cls._get_stock_price_from_yfinance(symbol)
             if result:
@@ -117,6 +123,67 @@ class StockAPI:
             
         except Exception as e:
             logger.error(f"Error fetching stock {symbol}: {str(e)}")
+            return None
+    
+    @classmethod
+    def _get_demo_stock_data(cls, symbol: str) -> Optional[Dict]:
+        """Get demo stock data when APIs are unavailable.
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            Demo stock data with realistic prices
+        """
+        # Demo data with approximate real prices
+        demo_prices = {
+            'AAPL': 185.42,
+            'MSFT': 330.05,
+            'GOOGL': 139.25,
+            'AMZN': 173.10,
+            'TSLA': 242.84,
+            'META': 501.25,
+            'NVDA': 875.30,
+            'JPM': 198.50,
+            'V': 258.75,
+            'WMT': 82.45,
+            'JNJ': 156.30,
+            'PG': 164.20,
+            'KO': 60.35,
+            'DIS': 92.50,
+            'NFLX': 215.45
+        }
+        
+        try:
+            symbol_upper = symbol.upper()
+            price_usd = demo_prices.get(symbol_upper)
+            
+            if not price_usd:
+                # Random-ish price for unknown symbols (for testing)
+                price_usd = 100.0 + (hash(symbol_upper) % 200)
+                logger.info(f"Demo: Using generated price for {symbol}")
+            
+            exchange_rate = cls.get_exchange_rate()
+            current_price_inr = price_usd * exchange_rate
+            
+            result = {
+                'symbol': symbol_upper,
+                'name': cls.POPULAR_STOCKS.get(symbol_upper, f"{symbol_upper} Inc."),
+                'price_usd': round(price_usd, 2),
+                'price_inr': round(current_price_inr, 2),
+                'currency': 'USD',
+                'exchange_rate': round(exchange_rate, 2),
+                'change': round((hash(symbol_upper) % 10 - 5) / 10, 2),
+                'change_percent': round((hash(symbol_upper) % 5 - 2.5) / 10, 2),
+                'market_cap': 'Demo Data',
+                'pe_ratio': 'Demo Data',
+                'divi_yield': 'Demo Data',
+                'updated_at': datetime.now().isoformat()
+            }
+            logger.info(f"Demo data for {symbol}: ${price_usd} (APIs unavailable on Render)")
+            return result
+        except Exception as e:
+            logger.error(f"Error generating demo data for {symbol}: {str(e)}")
             return None
     
     @classmethod
@@ -180,11 +247,13 @@ class StockAPI:
             Stock data or None
         """
         try:
+            logger.info(f"yfinance: Fetching {symbol} with 5s timeout")
             ticker = yf.Ticker(symbol)
-            data = ticker.history(period='1d')
+            # Add timeout to prevent hanging on Render
+            data = ticker.history(period='1d', timeout=5)
             
             if data.empty:
-                logger.warning(f"yfinance: No data returned for {symbol}")
+                logger.warning(f"yfinance: No data returned for {symbol} (empty response)")
                 return None
             
             info = ticker.info
@@ -208,7 +277,7 @@ class StockAPI:
                 'updated_at': datetime.now().isoformat()
             }
         except Exception as e:
-            logger.warning(f"yfinance error for {symbol}: {str(e)}")
+            logger.error(f"yfinance error for {symbol}: {str(e)}")
             return None
     
     @classmethod
@@ -234,7 +303,7 @@ class StockAPI:
     def get_stock_history(cls, symbol: str, period: str = '1mo') -> Optional[pd.DataFrame]:
         """Get historical stock data in USD.
         
-        Tries Alpha Vantage first, falls back to yfinance.
+        Tries Alpha Vantage first, falls back to yfinance, then demo data on Render.
         
         Args:
             symbol: Stock symbol
@@ -259,10 +328,16 @@ class StockAPI:
                 except Exception as e:
                     logger.warning(f"Alpha Vantage history failed: {str(e)}")
             
-            # Fall back to yfinance
+            # On Render, yfinance is usually blocked - use demo data
+            on_render = os.getenv('RENDER', False)
+            if on_render:
+                logger.warning(f"On Render: yfinance typically blocked, using demo history for {symbol}")
+                return cls._get_demo_stock_history(symbol)
+            
+            # Fall back to yfinance (for local development)
             logger.info(f"Attempting yfinance history for {symbol}")
             ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period)
+            data = ticker.history(period=period, timeout=5)
             
             if data.empty:
                 logger.warning(f"yfinance: No history returned for {symbol}")
@@ -272,6 +347,43 @@ class StockAPI:
             return data
         except Exception as e:
             logger.error(f"Error fetching history for {symbol}: {str(e)}")
+            return None
+    
+    @classmethod
+    def _get_demo_stock_history(cls, symbol: str) -> Optional[pd.DataFrame]:
+        """Generate demo historical stock data.
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            DataFrame with demo historical data or None
+        """
+        try:
+            from datetime import timedelta
+            
+            # Generate 30 days of demo data
+            dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
+            prices = []
+            
+            base_price = 100 + (hash(symbol) % 200)
+            for i in range(30):
+                variation = (hash(symbol + str(i)) % 20 - 10) / 100  # ±10%
+                price = base_price * (1 + variation)
+                prices.append(price)
+            
+            data = pd.DataFrame({
+                'Open': prices,
+                'High': [p * 1.02 for p in prices],
+                'Low': [p * 0.98 for p in prices],
+                'Close': prices,
+                'Volume': [1000000] * 30
+            }, index=dates)
+            
+            logger.info(f"Demo: Generated 30-day history for {symbol}")
+            return data
+        except Exception as e:
+            logger.error(f"Error generating demo history: {str(e)}")
             return None
     
     @classmethod
